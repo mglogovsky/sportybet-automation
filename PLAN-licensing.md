@@ -10,8 +10,18 @@ Two repos:
 - **Repo A: `sportybet-automation`** (this repo) — the client app users run.
 - **Repo B: `betradar-clone`** (`~/Desktop/betradar-clone`, Java 17 / Spring Boot 3.5.16) — gains the license endpoints.
 
-Status (28 Aug 2026): Repo B not started. Repo A largely implemented but
-**uncommitted** — see A0 before touching anything.
+Status (28 Aug 2026, evening): **Repo B steps B9 1–6 are implemented** on
+betradar-clone branch `feature/license-server` (six commits, full suite 1,607
+tests green). The B2 contract is live-verified end to end on the replay
+profile: mint on the panel → `{"verdict":"OK","expiresAt":…,"secondsLeft":…}`
+on the wire with no Set-Cookie → normalization → revoke/activate round-trip →
+store file in the sibling format. One refinement vs the sketch below: the
+stateless carve-out matches **exactly `POST /api/license/check`** (not the
+`/api/license/**` prefix) — a GET of the path 302s to the login page like any
+other anonymous request, which changes nothing for the client (it only ever
+POSTs; non-200 → UNREACHABLE as specced). B9 step 7 (deploy to the VPS) is
+NOT done. Repo A: largely implemented but **uncommitted** — see A0 before
+touching anything.
 
 Two decisions settled by this revision (flip them only deliberately, they are
 load-bearing in B2/B3 and A1/A4):
@@ -161,7 +171,8 @@ directions (count in jar == count in header).
 @Bean @Order(1)   // sorts ahead of the existing unordered chain;
                   // relaySecurity itself stays byte-identical
 SecurityFilterChain licenseApi(HttpSecurity http) throws Exception {
-    http.securityMatcher("/api/license/**")
+    http.securityMatcher(PathPatternRequestMatcher.withDefaults()
+                .matcher(HttpMethod.POST, "/api/license/check"))  // one verb, one path — as built
         .authorizeHttpRequests(a -> a.anyRequest().permitAll())  // key = credential
         .csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(STATELESS))

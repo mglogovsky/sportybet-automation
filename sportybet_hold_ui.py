@@ -43,7 +43,9 @@ from licensing.gate import LicenseGate  # noqa: E402
 
 HERE = Path(__file__).parent
 DEFAULT_PORT = 8790
-WINDOW_SIZE = (430, 780)
+# Default app-window size (CSS px / pt). 545×882 is the size from the
+# owner's reference screenshot (1090×1764 px on a 2× Retina display).
+WINDOW_SIZE = (545, 882)
 
 DEFAULT_SETTINGS = {
     "mines_stake": 100.0, "mines": 1, "desk_size": 25,
@@ -52,7 +54,7 @@ DEFAULT_SETTINGS = {
 
 
 class App:
-    def __init__(self) -> None:
+    def __init__(self, no_license: bool = False) -> None:
         self.ads = self._make_ads_client()
         self.ui_port: int = DEFAULT_PORT  # set by main() once resolved
         self.bridge = ControlBridge(actions=queue.Queue())
@@ -64,11 +66,21 @@ class App:
         # License gate: app-level (works with no session running). Publishes
         # into /api/state via _license_changed; on lock it enqueues the
         # existing graceful 'stop' action if a session is running.
-        self.license: dict = {"status": "checking", "expires_at": None,
-                              "seconds_left": None}
-        self.license_gate = LicenseGate(on_change=self._license_changed,
-                                        on_lock=self._license_locked)
-        self.license_gate.start()
+        #
+        # --no-license is our second, unlicensed version: the gate is never
+        # started and the app reports a perpetual OK (no key entry, no server
+        # checks). The customer build keeps the gate exactly as before.
+        if no_license:
+            self.license: dict = {"status": "OK", "expires_at": None,
+                                  "seconds_left": None, "verdict": None,
+                                  "checking": False}
+            self.license_gate: LicenseGate | None = None
+        else:
+            self.license = {"status": "checking", "expires_at": None,
+                            "seconds_left": None}
+            self.license_gate = LicenseGate(on_change=self._license_changed,
+                                            on_lock=self._license_locked)
+            self.license_gate.start()
 
     def _license_changed(self, status, expires_at, seconds_left) -> None:
         with self._start_lock:
@@ -81,6 +93,8 @@ class App:
 
     def recheck_license(self) -> dict:
         """Lock overlay's Re-check / Retry button: ask the gate to check now."""
+        if self.license_gate is None:
+            return {"ok": False, "error": "license check disabled in this build"}
         self.license_gate.recheck()
         return {"ok": True}
 
@@ -94,6 +108,8 @@ class App:
                 pass
 
     def activate_key(self, body: dict) -> dict:
+        if self.license_gate is None:
+            return {"ok": False, "error": "license check disabled in this build"}
         key = str(body.get("key") or "").strip().upper()
         if not key:
             return {"ok": False, "error": "enter a license key"}
@@ -103,6 +119,8 @@ class App:
         return {"ok": False, "error": f"license {verdict}"}
 
     def deactivate(self) -> dict:
+        if self.license_gate is None:
+            return {"ok": False, "error": "license check disabled in this build"}
         self.license_gate.deactivate()
         return {"ok": True}
 
@@ -139,7 +157,7 @@ class App:
         }
 
     def start_session(self, body: dict) -> dict:
-        if self.license_gate.status != "OK":
+        if self.license_gate is not None and self.license_gate.status != "OK":
             return {"ok": False,
                     "error": f"license locked: {self.license_gate.status}"}
         with self._start_lock:
@@ -207,7 +225,7 @@ class App:
         return snap
 
 
-APP = App()
+APP: App  # created in main() once --no-license is known
 
 
 def _find_chrome_windows() -> str | None:
@@ -371,7 +389,12 @@ def main() -> None:
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--no-window", action="store_true",
                    help="don't open the Chrome --app window (print the URL only)")
+    p.add_argument("--no-license", action="store_true",
+                   help="unlicensed version: no key entry, no license-server checks")
     args = p.parse_args()
+
+    global APP
+    APP = App(no_license=args.no_license)
 
     port = args.port if args.port is not None else user_config.ui_port(DEFAULT_PORT)
     APP.ui_port = port
