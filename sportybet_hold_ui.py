@@ -12,7 +12,8 @@ Endpoints
   GET  /               the page (hold_ui.html)
   GET  /api/state      1 Hz snapshot: state, balance, target, timer, log tail
   GET  /api/profiles   AdsPower profiles for the IDLE picker
-  POST /api/action     {"action": start|begin|redeem|rearm|retry|stop, ...}
+  POST /api/action     {"action": start|begin|redeem|rearm|retry|stop|reset, ...}
+                         (reset = clear a dead session's error, back to idle)
 
 STOP means "finish the current round, cash out the mines hold, back to IDLE" —
 never an abort. Quitting this app (Ctrl+C in the terminal) asks the worker to
@@ -32,11 +33,13 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from licensing import config as user_config  # noqa: E402
 
 from adspower import AdsPowerClient, AdsPowerError  # noqa: E402
 from sportybet_hold_flow import ControlBridge, default_args  # noqa: E402
 from sportybet_hold_flow import run as flow_run  # noqa: E402
+
+from licensing.gate import LicenseGate  # noqa: E402
 
 HERE = Path(__file__).parent
 DEFAULT_PORT = 8790
@@ -50,15 +53,95 @@ DEFAULT_SETTINGS = {
 
 class App:
     def __init__(self) -> None:
-        self.ads = AdsPowerClient()
+        self.ads = self._make_ads_client()
+        self.ui_port: int = DEFAULT_PORT  # set by main() once resolved
         self.bridge = ControlBridge(actions=queue.Queue())
         self.bridge.publish(state="idle")
         self.worker: threading.Thread | None = None
         self.error: str | None = None
         self.settings: dict = dict(DEFAULT_SETTINGS)
         self._start_lock = threading.Lock()
+        # License gate: app-level (works with no session running). Publishes
+        # into /api/state via _license_changed; on lock it enqueues the
+        # existing graceful 'stop' action if a session is running.
+        self.license: dict = {"status": "checking", "expires_at": None,
+                              "seconds_left": None}
+        self.license_gate = LicenseGate(on_change=self._license_changed,
+                                        on_lock=self._license_locked)
+        self.license_gate.start()
+
+    def _license_changed(self, status, expires_at, seconds_left) -> None:
+        with self._start_lock:
+            self.license = {"status": status, "expires_at": expires_at,
+                            "seconds_left": seconds_left,
+                            # v2 /api/state shape: verdict + checking alongside
+                            "verdict": status.split(":", 1)[1]
+                            if status.startswith("locked:") else None,
+                            "checking": status in ("checking", "offline-retry")}
+
+    def recheck_license(self) -> dict:
+        """Lock overlay's Re-check / Retry button: ask the gate to check now."""
+        self.license_gate.recheck()
+        return {"ok": True}
+
+    def _license_locked(self, verdict) -> None:
+        # Money-safety: only the existing graceful stop — finish the round,
+        # cash out the mines hold, back to idle. Never a force-kill.
+        if self.worker is not None and self.worker.is_alive():
+            try:
+                self.bridge.actions.put("stop")
+            except Exception:
+                pass
+
+    def activate_key(self, body: dict) -> dict:
+        key = str(body.get("key") or "").strip().upper()
+        if not key:
+            return {"ok": False, "error": "enter a license key"}
+        verdict = self.license_gate.activate(key)
+        if verdict == "OK":
+            return {"ok": True}
+        return {"ok": False, "error": f"license {verdict}"}
+
+    def deactivate(self) -> dict:
+        self.license_gate.deactivate()
+        return {"ok": True}
+
+    @staticmethod
+    def _make_ads_client() -> AdsPowerClient:
+        return AdsPowerClient(api_base=user_config.adspower_api_base(),
+                              api_token=user_config.adspower_api_token())
+
+    def save_config(self, body: dict) -> dict:
+        """Persist user config (next to the license key file). AdsPower API
+        base/token apply live; ui_port needs a restart."""
+        restart = False
+        fields = {}
+        for k in ("adspower_api_base", "adspower_api_token"):
+            if body.get(k) is not None:
+                fields[k] = str(body[k]).strip()
+        if body.get("ui_port") is not None:
+            try:
+                fields["ui_port"] = int(body["ui_port"]) if str(body["ui_port"]).strip() else ""
+            except (TypeError, ValueError):
+                return {"ok": False, "error": "ui_port must be a number"}
+            restart = True
+        cfg = user_config.update(**fields)
+        self.ads = self._make_ads_client()  # live-apply API base/token
+        return {"ok": True, "config": cfg, "restart_required": restart}
+
+    def config_info(self) -> dict:
+        cfg = user_config.load()
+        return {
+            "config_path": str(user_config.config_path()),
+            "adspower_api_base": user_config.adspower_api_base(),
+            "ui_port": self.ui_port,
+            "ui_port_saved": cfg.get("ui_port"),
+        }
 
     def start_session(self, body: dict) -> dict:
+        if self.license_gate.status != "OK":
+            return {"ok": False,
+                    "error": f"license locked: {self.license_gate.status}"}
         with self._start_lock:
             if self.worker is not None and self.worker.is_alive():
                 return {"ok": False, "error": "session already running"}
@@ -117,6 +200,8 @@ class App:
             "settings": self.settings,
             "mines_stake": self.settings.get("mines_stake"),
             "default_profile": self.default_profile(),
+            "license": self.license,
+            "config": self.config_info(),
             "now": time.time(),
         })
         return snap
@@ -125,8 +210,53 @@ class App:
 APP = App()
 
 
+def _find_chrome_windows() -> str | None:
+    """chrome.exe via the App Paths registry key, then standard install dirs."""
+    try:
+        import winreg
+        for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
+            try:
+                with winreg.OpenKey(
+                        root, r"SOFTWARE\Microsoft\Windows\CurrentVersion"
+                              r"\App Paths\chrome.exe") as k:
+                    path, _ = winreg.QueryValueEx(k, None)
+                    if path and os.path.exists(path):
+                        return path
+            except OSError:
+                continue
+    except ImportError:
+        pass
+    for env in ("LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"):
+        base = os.environ.get(env)
+        if not base:
+            continue
+        p = os.path.join(base, r"Google\Chrome\Application\chrome.exe")
+        if os.path.exists(p):
+            return p
+    return None
+
+
 def open_window(url: str) -> bool:
     """Chrome --app mode: a small window with no tab strip or omnibox."""
+    if sys.platform == "win32":
+        chrome = _find_chrome_windows()
+        if chrome:
+            try:
+                subprocess.Popen(
+                    [chrome, f"--app={url}",
+                     f"--window-size={WINDOW_SIZE[0]},{WINDOW_SIZE[1]}",
+                     "--window-position=100,60"],
+                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                return True
+            except Exception:
+                pass
+        # Last resort: the default browser (console=False means no printed
+        # URL, so always try to open SOMETHING).
+        try:
+            os.startfile(url)  # type: ignore[attr-defined]
+            return True
+        except Exception:
+            return False
     try:
         subprocess.Popen(
             ["open", "-na", "Google Chrome", "--args",
@@ -198,8 +328,33 @@ class Handler(BaseHTTPRequestHandler):
         if act == "start":
             self._send_json(APP.start_session(body))
             return
+        # License actions are app-level: they must work with NO session
+        # running, so they bypass the "no session running" guard below.
+        if act == "activate_key":
+            self._send_json(APP.activate_key(body))
+            return
+        if act == "deactivate":
+            self._send_json(APP.deactivate())
+            return
+        if act == "recheck_license":
+            self._send_json(APP.recheck_license())
+            return
+        # User config is app-level too — editable with no session running.
+        if act == "save_config":
+            self._send_json(APP.save_config(body))
+            return
+        if act == "reset":
+            # The error screen's way back: a dead session can be dismissed to
+            # idle without restarting the server.
+            if APP.worker is not None and APP.worker.is_alive():
+                self._send_json({"ok": False, "error": "session running"})
+                return
+            APP.error = None
+            APP.bridge.publish(state="idle")
+            self._send_json({"ok": True})
+            return
         if act in ("begin", "continue", "redeem", "rearm", "retry", "pick",
-                   "insta", "cashout_bet", "stop"):
+                   "insta", "stop"):
             if APP.worker is None or not APP.worker.is_alive():
                 self._send_json({"ok": False, "error": "no session running"})
                 return
@@ -211,13 +366,17 @@ class Handler(BaseHTTPRequestHandler):
 
 def main() -> None:
     p = argparse.ArgumentParser(description="SportyBet Hold UI")
-    p.add_argument("--port", type=int, default=DEFAULT_PORT)
+    # Port precedence: --port flag > SPORTYPILOT_PORT env > config ui_port
+    # > DEFAULT_PORT.
+    p.add_argument("--port", type=int, default=None)
     p.add_argument("--no-window", action="store_true",
                    help="don't open the Chrome --app window (print the URL only)")
     args = p.parse_args()
 
-    srv = ThreadingHTTPServer(("127.0.0.1", args.port), Handler)
-    url = f"http://127.0.0.1:{args.port}"
+    port = args.port if args.port is not None else user_config.ui_port(DEFAULT_PORT)
+    APP.ui_port = port
+    srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+    url = f"http://127.0.0.1:{port}"
     if not args.no_window and not open_window(url):
         print(f"(could not open Chrome app-mode — open {url} yourself)")
     print(f"SportyBet Hold UI on {url} — Ctrl+C to quit", flush=True)
