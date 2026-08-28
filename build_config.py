@@ -14,5 +14,5 @@ import os
 
 VERSION = "0.1.0"
 
-SERVER_BASE_URL = os.environ.get("LICENSE_SERVER_URL", "https://localhost:8443")
+SERVER_BASE_URL = os.environ.get("LICENSE_SERVER_URL", "https://feed-wire.pro")
 LICENSE_API_TOKEN = os.environ.get("LICENSE_API_TOKEN", "")

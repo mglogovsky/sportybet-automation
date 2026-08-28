@@ -17,7 +17,7 @@ Builds the SportyBet Hold UI (`sportybet_hold_ui.py` + `sportybet_hold_flow.py`
   the app drives the AdsPower browser over CDP; no browser is bundled.
 - **Google Chrome** (for the `--app` window).
 - Environment variables (set by the admin before handoff / via a wrapper):
-  - `LICENSE_SERVER_URL` — default `https://localhost:8443` (placeholder!)
+  - `LICENSE_SERVER_URL` — default `https://feed-wire.pro`
   - `LICENSE_API_TOKEN` — bearer token minted on the betradar-clone server;
     may be empty (client still sends the header).
 - A valid license key (`SBET-XXXX-XXXX-XXXX`), entered on first run.
