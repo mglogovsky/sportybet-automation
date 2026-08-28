@@ -1,0 +1,369 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SportyBet Hold</title>
+<style>
+  :root{
+    --bg:#0b0f14; --card:#131a22; --card2:#0f151c; --line:#22303d;
+    --txt:#e6edf3; --dim:#8b9aa9; --green:#22c55e; --amber:#f59e0b;
+    --red:#ef4444; --blue:#38bdf8; --mono:ui-monospace,SFMono-Regular,Menlo,monospace;
+  }
+  *{box-sizing:border-box;margin:0}
+  body{background:var(--bg);color:var(--txt);font:14px/1.45 -apple-system,"Segoe UI",Roboto,sans-serif;min-height:100vh}
+  header{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);position:sticky;top:0;background:var(--bg);z-index:2}
+  .brand{font-weight:800;letter-spacing:.08em;font-size:12px}
+  .pill{font:700 10px/1 var(--mono);padding:5px 9px;border-radius:99px;letter-spacing:.06em;text-transform:uppercase}
+  .pill.idle{background:#1c2b3a;color:var(--dim)} .pill.setup,.pill.arm{background:#1c2b3a;color:var(--blue)}
+  .pill.ready,.pill.booked{background:#14331f;color:var(--green)}
+  .pill.holding,.pill.arming,.pill.settling,.pill.insta{background:#3a2b12;color:var(--amber)}
+  .pill.paused,.pill.error,.pill.naked{background:#3a1616;color:var(--red)}
+  .pill.cooldown{background:#1c2b3a;color:var(--dim)}
+  .pill.stopping{background:#3a2b12;color:var(--amber)}
+  .bal{margin-left:auto;font:700 15px var(--mono)}
+  .stop{background:none;border:1px solid var(--red);color:var(--red);border-radius:8px;padding:6px 10px;font:700 11px var(--mono);cursor:pointer;white-space:nowrap}
+  .stop:hover:not(:disabled){background:var(--red);color:#fff}
+  .stop:disabled{opacity:.4;cursor:default}
+  main{max-width:720px;margin:0 auto;padding:14px;display:flex;flex-direction:column;gap:10px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px}
+  .hero{text-align:center;display:flex;flex-direction:column;gap:12px;align-items:center}
+  .hero h2{font-size:15px;font-weight:700}
+  .hero .sub{color:var(--dim);font-size:13px}
+  .target{width:100%;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:13px;text-align:left}
+  .target.dashed{border-style:dashed;opacity:.75}
+  .target .ev{font-weight:700} .target .mk{color:var(--dim);font-size:13px}
+  .target .odds{font:700 19px var(--mono);color:var(--blue);float:right}
+  .target.pick{cursor:pointer;transition:border-color .15s}
+  .target.pick:hover{border-color:var(--blue)}
+  .steps{text-align:left;width:100%;display:flex;flex-direction:column;gap:8px}
+  .step{display:flex;gap:10px;align-items:center;background:var(--card2);border:1px solid var(--line);border-radius:10px;padding:11px}
+  .step.done{opacity:.45}.step .n{font:700 11px var(--mono);border:1px solid var(--line);border-radius:6px;padding:2px 7px;color:var(--blue)}
+  .timer{font:800 42px var(--mono);letter-spacing:.02em}
+  .bigbtn{width:100%;border:0;border-radius:12px;padding:15px;font-size:15px;font-weight:800;cursor:pointer;letter-spacing:.02em}
+  .bigbtn.green{background:var(--green);color:#04120a}.bigbtn.green:hover:not(:disabled){filter:brightness(1.1)}
+  .bigbtn.amber{background:var(--amber);color:#1a1000}.bigbtn.amber:hover:not(:disabled){filter:brightness(1.1)}
+  .bigbtn:disabled{opacity:.5;cursor:wait}
+  .bigbtn.ghost{background:none;border:1px solid var(--line);color:var(--dim);padding:11px;font-size:13px}
+  .bigbtn.ghost:hover:not(:disabled){border-color:var(--blue);color:var(--txt)}
+  .hint{color:var(--dim);font-size:12px}
+  .big{font-size:32px}
+  .kv{display:flex;justify-content:space-between;font:13px var(--mono);width:100%;padding:4px 0;border-bottom:1px dashed var(--line)}
+  .kv:last-child{border-bottom:0}
+  .chips{display:flex;gap:8px;flex-wrap:wrap}
+  .chip{font:11px var(--mono);color:var(--dim);border:1px solid var(--line);border-radius:99px;padding:4px 10px}
+  .chip b{color:var(--txt)}
+  #log{background:var(--card2);border:1px solid var(--line);border-radius:12px;padding:12px;height:170px;overflow:auto;font:11.5px/1.7 var(--mono);color:var(--dim);white-space:pre-wrap}
+  #log div:last-child{color:var(--txt)}
+  label{display:block;font:11px var(--mono);color:var(--dim);margin:8px 0 3px}
+  input,select{width:100%;background:var(--card2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:8px;font:13px var(--mono)}
+  .grid{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px}
+  .err{color:var(--red);font:12px var(--mono)}
+  .spin{display:inline-block;animation:sp 1s linear infinite}
+  @keyframes sp{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">SPORTYBET&nbsp;HOLD</div>
+  <div class="pill idle" id="pill">idle</div>
+  <div class="pill" id="instaPill" style="display:none" title="Live market status of the armed selection: OPEN = a bet verdicts instantly (INSTA possible); SUSPENDED = the server parks bets (hold window, INSTA off)"></div>
+  <div class="bal" id="bal">—</div>
+  <button class="stop" id="stopBtn" disabled title="Finish the current round, cash out the mines hold, stop">■ STOP</button>
+</header>
+
+<main>
+  <section class="card hero" id="hero"></section>
+  <section class="chips" id="chips"></section>
+  <section id="log"></section>
+  <section class="chips" id="history"></section>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+let S = { state: "idle", log: [] };
+let profiles = null;
+let tickTimer = null;
+let lastHero = "";
+
+// The IDLE form must survive re-renders (profile list arriving, errors).
+const FORM_IDS = ["f_profile","f_mines_stake","f_mines","f_desk","f_margin","f_min_stake","f_cycle_delay"];
+function readForm() {
+  const v = {};
+  FORM_IDS.forEach(id => { const el = document.getElementById(id); if (el) v[id] = el.value; });
+  return v;
+}
+function writeForm(v) {
+  FORM_IDS.forEach(id => { const el = document.getElementById(id); if (el && v[id] != null) el.value = v[id]; });
+}
+
+const fmt = n => (n == null ? "—" : "₦ " + Number(n).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}));
+
+async function act(action, extra={}) {
+  try {
+    await fetch("/api/action", {method:"POST", headers:{"content-type":"application/json"},
+                                body: JSON.stringify({action, ...extra})});
+  } catch(e) {}
+  setTimeout(poll, 150);
+}
+
+// Disable on click so a double-click can't queue a duplicate action (the next
+// state render re-enables it).
+function btn(el, action) { el.disabled = true; act(action); }
+
+// Picker card: dim immediately, send the pick with the selection's identity.
+function pickSel(el, data) { el.style.opacity = .5; act("pick", data); }
+
+async function poll() {
+  try {
+    const r = await fetch("/api/state");
+    S = await r.json();
+    render();
+  } catch(e) {}
+}
+
+async function loadProfiles() {
+  try {
+    const r = await fetch("/api/profiles");
+    const j = await r.json();
+    profiles = j.ok ? j.profiles : [];
+    if (S.state === "idle") render();
+    if (!j.ok) $("#hero").insertAdjacentHTML("beforeend", `<div class="err">${j.error||"AdsPower not reachable"}</div>`);
+  } catch(e) { profiles = []; }
+}
+
+function chips() {
+  const c = [];
+  if (S.key_expires_at && S.now) c.push(`key <b>${Math.max(0,(S.key_expires_at - S.now)/60).toFixed(0)} min</b>`);
+  if (S.mines_ok) c.push(`mines <b>✓</b>`);
+  if (S.cycle) c.push(`cycle <b>${S.cycle}</b>`);
+  if (S.round_no) c.push(`round <b>${S.round_no}</b>`);
+  if (S.mines_stake) c.push(`hold <b>₦${S.mines_stake}</b>`);
+  if (S.suspended) c.push(`<b style="color:var(--red)">SUSPENDED</b>`);
+  const ms = S.market_status;
+  if (ms === 0) c.push(`<b style="color:var(--green)">OPEN · instant</b>`);
+  else if (ms === 1 || ms === 2) c.push(`<b style="color:var(--amber)">SUSPENDED · hold window</b>`);
+  $("#chips").innerHTML = c.map(x => `<div class="chip">${x}</div>`).join("");
+  const h = (S.history || []).slice(-14).reverse();
+  $("#history").innerHTML = h.map(x =>
+    `<div class="chip">#${x.cycle} ${Number(x.secs).toFixed(1)}s <b>${x.vclass}</b></div>`).join("");
+}
+
+function targetCard(t, dashed, note) {
+  if (!t) return `<div class="target dashed"><div class="mk">listening for a slip selection…</div></div>`;
+  return `<div class="target${dashed?" dashed":""}"><span class="odds">${t.odds ?? ""}</span>
+    <div class="ev">${t.eventId ?? ""}</div><div class="mk">${t.market ?? ""} / ${t.outcome ?? ""}${note ? " · " + note : ""}</div></div>`;
+}
+
+function rearmBtn() {
+  return `<button class="bigbtn ghost" ${S.stop_requested || S.rearm_pending ? "disabled" : ""} onclick="btn(this,'rearm')">↺&nbsp; CHANGE SELECTION</button>`;
+}
+
+function hero() {
+  const t = S.target;
+  switch (S.state) {
+  case "idle": {
+    const opts = (profiles || []).map(p =>
+      `<option value="${p.user_id}"${p.user_id === S.default_profile ? " selected" : ""}>${p.label}</option>`).join("");
+    const st = S.settings || {};
+    return `
+    <h2>SportyBet Hold</h2>
+    <div class="sub">pick the AdsPower profile, set the round, press START</div>
+    <div style="width:100%;text-align:left">
+      <label>PROFILE</label>
+      <select id="f_profile">${opts || `<option value="">(AdsPower not reachable)</option>`}</select>
+      <div class="grid">
+        <div><label>MINES STAKE ₦</label><input id="f_mines_stake" type="number" value="${st.mines_stake ?? 100}"></div>
+        <div><label>MINES</label><input id="f_mines" type="number" value="${st.mines ?? 1}"></div>
+        <div><label>DESK</label><select id="f_desk">${[25,49,81].map(d=>`<option${d===(st.desk_size??25)?" selected":""}>${d}</option>`).join("")}</select></div>
+        <div><label>MARGIN ₦</label><input id="f_margin" type="number" value="${st.redeem_margin ?? 5}"></div>
+        <div><label>MIN STAKE ₦</label><input id="f_min_stake" type="number" value="${st.min_stake ?? 20}"></div>
+        <div><label>CYCLE DELAY s</label><input id="f_cycle_delay" type="number" step="0.5" value="${st.cycle_delay ?? 2}"></div>
+      </div>
+    </div>
+    <button class="bigbtn green" onclick="startSession()">▶&nbsp; START</button>
+    ${S.error ? `<div class="err">${S.error}</div>` : ""}`;
+  }
+  case "setup":
+    return `<div class="big spin">◌</div><h2>Launching…</h2>
+      <div class="sub">starting the profile browser and connecting</div>`;
+  case "login":
+    return `<div class="big">🔑</div><h2>Log in to SportyBet</h2>
+      <div class="sub">the profile browser is on sportybet.com — log in there first</div>
+      <button class="bigbtn green" onclick="btn(this,'continue')">CONTINUE&nbsp;→</button>
+      <div class="hint">Mines connects after this, once, then its tab closes — no background noise</div>`;
+  case "arm": {
+    const needBet = S.need_bet;
+    if (S.choices && S.choices.length > 1) {
+      const cards = S.choices.map(c => `
+        <div class="target pick" onclick='pickSel(this, ${JSON.stringify({eventId: c.eventId, marketId: c.marketId, outcomeId: c.outcomeId})})'>
+          <span class="odds">${c.odds ?? ""}</span>
+          <div class="ev">${c.eventId ?? ""}</div>
+          <div class="mk">${c.market ?? ""} / ${c.outcome ?? ""}</div>
+        </div>`).join("");
+      return `
+      <h2>Pick a selection</h2>
+      <div class="sub">${S.choices.length} selections on the slip — tap the one to arm</div>
+      ${cards}
+      <div class="hint">the list follows your slip live</div>`;
+    }
+    return `
+    <h2>Get ready</h2>
+    <div class="steps">
+      <div class="step"><span class="n">1</span> Add a selection to the betslip <b>in the AdsPower browser window</b> (not your normal Chrome)</div>
+      <div class="step${needBet ? "" : " done"}"><span class="n">2</span> ${needBet ? "Place a minimal ₦10 bet — mints the cipher key" : "Minimal bet not needed — cipher key valid"}</div>
+    </div>
+    ${targetCard(t, true, "listening…")}
+    ${S.suspended ? `<div class="err">⚠ the slip shows this market as SUSPENDED — pick another selection</div>` : ""}
+    <div class="hint">the card follows your slip live — arms when stable 2 s</div>`;
+  }
+  case "ready": {
+    const ms = S.market_status;
+    const open = ms === 0, susp = ms === 1 || ms === 2;
+    const msLine = ms == null ? `<span style="color:var(--dim)">reading live market status…</span>`
+      : open ? `<b style="color:var(--green)">OPEN — a bet verdicts INSTANTLY</b>`
+      : susp ? `<b style="color:var(--amber)">SUSPENDED — the server parks the bet (hold window)</b>`
+      : `<b>status ${ms}</b>`;
+    return `
+    <h2>Target armed</h2>
+    ${targetCard(t, false)}
+    ${S.suspended ? `<div class="err">⚠ market SUSPENDED in the slip — change selection</div>` : ""}
+    <div class="kv"><span>balance</span><b>${fmt(S.balance)}</b></div>
+    <div class="kv"><span>market</span>${msLine}</div>
+    <button class="bigbtn green" ${open ? "" : "disabled"} onclick="btn(this,'insta')">⚡&nbsp; INSTA BET ${fmt(S.balance)}</button>
+    <button class="bigbtn ${susp ? "green" : "amber"}" onclick="btn(this,'begin')">🎯&nbsp; FIRE HOLD${susp ? " — window live" : ""}</button>
+    <button class="bigbtn ghost" onclick="btn(this,'rearm')">↺&nbsp; CHANGE SELECTION</button>
+    <div class="hint">${open ? "market open: INSTA is live; FIRE HOLD waits for a suspension before each fire"
+      : susp ? "market suspended: FIRE HOLD has its window; INSTA unlocks when it re-opens"
+      : "INSTA unlocks on OPEN · FIRE HOLD waits for suspensions on its own"}</div>`;
+  }
+  case "insta":
+    return `<div class="timer" id="tm">0.0s</div>
+      <div class="sub">INSTA BET ${fmt(S.stake)} fired — the verdict lands instantly…</div>`;
+  case "arming":
+    return `<div class="timer" id="tm">0.0s</div>
+      <div class="sub">BET ${fmt(S.stake)} fired — arming the mines hold…</div>
+      ${rearmBtn()}`;
+  case "warmup":
+    return `<div class="timer" id="tm">0.0s</div>
+      <div class="sub">warm-up bet ${fmt(S.stake)} in flight — consuming the instant first-order window</div>
+      ${rearmBtn()}`;
+  case "holding": {
+    const hold = S.holding !== false;
+    return `
+    <div class="timer" id="tm">0.0s</div>
+    <div class="sub">BET ${fmt(S.stake)} in flight · ${hold ? `mines holding ₦${S.mines_stake ?? "?"} (cell ${S.cell ?? "?"} safe)` : "mines round played out"}</div>
+    <button class="bigbtn amber" ${S.stop_requested || !hold ? "disabled" : ""} onclick="btn(this,'redeem')">⬇&nbsp; CASH OUT &amp; SETTLE BET</button>
+    ${rearmBtn()}
+    <div class="hint">${S.stop_requested ? "stopping — this round will play out" : S.rearm_pending ? "changing selection — this round will play out, then back to the betslip" : "or do nothing — the bet starves (4200) and the loop repeats"}</div>`;
+  }
+  case "cooldown":
+    return `<div class="big spin">◌</div><h2>Cooldown…</h2>
+      <div class="sub">pacing the next fire — orders fired too soon after a verdict get instant verdicts that race the mines hold</div>
+      ${rearmBtn()}`;
+  case "naked": {
+    const b = S.booked || {};
+    return `
+    <div class="big">🚨</div><h2 style="color:var(--red)">Naked accept</h2>
+    <div class="sub">the bet booked WITHOUT the mines hold${b.cashed ? " — auto-cashed out to recover the stake" : ""}</div>
+    <div class="kv"><span>order</span><b>${b.order ?? "—"}</b></div>
+    <div class="kv"><span>stake</span><b>${b.stake ?? "—"}</b></div>
+    <div class="kv"><span>potential winnings</span><b>${b.potential ?? "—"}</b></div>
+    ${b.cashed ? `<div class="kv"><span>cashout</span><b style="color:var(--green)">${b.cashed}</b></div>` : ""}
+    <button class="bigbtn amber" onclick="btn(this,'cashout_bet')">💸&nbsp; CASH OUT BET</button>
+    <button class="bigbtn ghost" onclick="btn(this,'rearm')">↻&nbsp; RE-ARM NEXT TARGET</button>`;
+  }
+  case "booked": {
+    const b = S.booked || {};
+    return `
+    <div class="big">✅</div><h2>Bet booked</h2>
+    <div class="kv"><span>order</span><b>${b.order ?? "—"}</b></div>
+    <div class="kv"><span>stake</span><b>${b.stake ?? "—"}</b></div>
+    <div class="kv"><span>potential winnings</span><b style="color:var(--green)">${b.potential ?? "—"}</b></div>
+    ${b.cashed ? `<div class="kv"><span>cashout</span><b style="color:var(--green)">${b.cashed}</b></div>` : ""}
+    <button class="bigbtn amber" onclick="btn(this,'cashout_bet')">💸&nbsp; CASH OUT BET</button>
+    <button class="bigbtn green" onclick="btn(this,'rearm')">↻&nbsp; RE-ARM NEXT TARGET</button>`;
+  }
+  case "paused": {
+    const p = S.pause || {};
+    return `
+    <div class="big">⚠️</div><h2>Circuit breaker</h2>
+    <div class="sub">${p.vclass === "no-window" ? "this event books bets INSTANTLY — no in-play window, the loop would go naked" : `${p.count ?? 3} consecutive '${p.vclass ?? "?"}' failures — the market may be dead/suspended`}</div>
+    <button class="bigbtn amber" onclick="btn(this,'retry')">↻&nbsp; RETRY</button>
+    <button class="bigbtn ghost" onclick="btn(this,'rearm')">✎&nbsp; CHANGE SELECTION</button>`;
+  }
+  case "stopping":
+    return `<div class="big spin">◌</div><h2>Stopping…</h2>
+      <div class="sub">finishing the current round — the mines hold will be cashed out</div>`;
+  case "error":
+    return `<div class="big">⛔</div><h2>Something broke</h2>
+      <div class="err">${S.error || "unknown error"}</div>
+      <div class="hint">fix it, then START again from the idle screen</div>`;
+  }
+  return `<div class="sub">…</div>`;
+}
+
+function render() {
+  const p = $("#pill");
+  p.className = "pill " + (S.state || "idle");
+  p.textContent = S.state || "idle";
+  // Persistent INSTA availability badge (live market status of the armed slip)
+  const ip = $("#instaPill"), ms = S.market_status;
+  if (ms === 0) {
+    ip.style.display = ""; ip.style.background = "#14331f"; ip.style.color = "var(--green)";
+    ip.textContent = "⚡ INSTA READY";
+  } else if (ms === 1 || ms === 2) {
+    ip.style.display = ""; ip.style.background = "#3a2b12"; ip.style.color = "var(--amber)";
+    ip.textContent = "INSTA off · suspended";
+  } else {
+    ip.style.display = "none";
+  }
+  $("#bal").textContent = fmt(S.balance);
+  $("#stopBtn").disabled = !(S.running && !S.stop_requested && !["idle","setup","error"].includes(S.state));
+  // Rewrite the hero ONLY when what it shows actually changed — otherwise the
+  // 1 Hz poll would clobber the IDLE form mid-typing.
+  const heroKey = S.state === "idle"
+    ? "idle|" + (profiles ? profiles.length : -1) + "|" + (S.error || "")
+    : S.state + "|" + JSON.stringify([S.target, S.balance, S.stake_preview, S.booked,
+                                      S.pause, S.holding, S.cell, S.stop_requested,
+                                      S.need_bet, S.error, S.choices, S.suspended,
+                                      S.market_status, S.stake, S.rearm_pending]);
+  if (heroKey !== lastHero) {
+    const formVals = (S.state === "idle" && lastHero.startsWith("idle")) ? readForm() : null;
+    $("#hero").innerHTML = hero();
+    if (formVals) writeForm(formVals);
+    lastHero = heroKey;
+  }
+  chips();
+  const lg = $("#log");
+  lg.innerHTML = (S.log || []).map(l => `<div>${l.replace(/</g,"&lt;")}</div>`).join("");
+  lg.scrollTop = lg.scrollHeight;
+  // local timer tick between polls
+  if (tickTimer) { clearInterval(tickTimer); tickTimer = null; }
+  if ((S.state === "holding" || S.state === "arming" || S.state === "insta") && S.fired_at && S.now) {
+    const t0 = S.fired_at, skew = Date.now()/1000 - S.now;
+    const el = $("#tm");
+    if (el) tickTimer = setInterval(() => { el.textContent = (Date.now()/1000 - skew - t0).toFixed(1) + "s"; }, 100);
+  }
+}
+
+function startSession() {
+  const v = id => document.getElementById(id);
+  act("start", {
+    profile: v("f_profile") ? v("f_profile").value : "",
+    mines_stake: parseFloat(v("f_mines_stake").value) || 100,
+    mines: parseInt(v("f_mines").value) || 1,
+    desk_size: parseInt(v("f_desk").value) || 25,
+    redeem_margin: parseFloat(v("f_margin").value) || 5,
+    min_stake: parseFloat(v("f_min_stake").value) || 20,
+    cycle_delay: parseFloat(v("f_cycle_delay").value) || 2,
+  });
+}
+
+$("#stopBtn").onclick = () => act("stop");
+poll();
+loadProfiles();
+setInterval(poll, 1000);
+</script>
+</body>
+</html>
