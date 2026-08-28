@@ -562,6 +562,37 @@ def accept_slip_changes(page) -> bool:
         return False
 
 
+def clear_betslip(page) -> int:
+    """Remove every selection currently in the betslip by clicking each item's
+    own remove icon — <i class="m-icon-delete"></i> inside the slip's
+    .m-list .m-item rows (selector confirmed against the live DOM 2026-08-28).
+    The SPA then prunes localStorage.betslips itself, so a leftover selection
+    can't silently re-arm as the next target. Stops when the slip reads empty,
+    when no icons remain, or after 12 clicks. Returns clicks performed."""
+    clicked = 0
+    while read_all_selections(page) and clicked < 12:
+        try:
+            ok = page.evaluate("""() => {
+              const icons = [...document.querySelectorAll(
+                '#j_betslip .m-list .m-item i.m-icon-delete, '
+                + '.m-betslips .m-list .m-item i.m-icon-delete')]
+                .filter(el => {
+                  const r = el.getBoundingClientRect();
+                  return r.width > 0 && r.height > 0;
+                });
+              if (!icons.length) return false;
+              icons[0].click();
+              return true;
+            }""")
+        except Exception:
+            break
+        if not ok:
+            break
+        clicked += 1
+        page.wait_for_timeout(400)
+    return clicked
+
+
 def selection_label(slip: dict) -> str:
     oi = slip.get("outcomeInfo") or {}
     mi = slip.get("marketInfo") or {}
@@ -1148,25 +1179,10 @@ def insta_bet(page, args, slip: dict, key_ref: list, balance: float,
 
 
 def booked_gate(page, key_ref: list, live: dict, b: ControlBridge) -> None:
-    """The booked/naked screen's gate: RE-ARM moves on; CASH OUT BET cashes
-    out the remembered order via the sports cashout API (repeatable)."""
-    while True:
-        got = b.gate("RE-ARM the next target (Ctrl+C to quit) — or CASH OUT "
-                     "the booked bet", ("rearm", "cashout_bet"))
-        if got[0] != "cashout_bet":
-            return
-        oid = live.get("last_order")
-        if not oid:
-            b.log("cash out: no order id on record — use the site's Cashout tab")
-            continue
-        ok, info = sports_cashout(page, key_ref[0], key_ref[1], str(oid), b)
-        b.log(f"cash out: {info}" if ok else f"cash out FAILED: {info}")
-        cur = dict(b.snap().get("booked") or {})
-        cur["cashed"] = info if ok else f"FAILED: {info}"
-        b.publish(booked=cur)
-        bal = read_balance(page)
-        if bal is not None:
-            b.publish(balance=bal)
+    """The booked/naked screen's gate: RE-ARM moves on (Enter in the terminal).
+    (Naked accepts still auto-cash-out in the accept paths — only the manual
+    button was removed.)"""
+    b.gate("RE-ARM the next target (Ctrl+C to quit)", ("rearm",))
 
 
 def warmup_bet(page, args, slip: dict, key_ref: list, balance: float,
@@ -1306,6 +1322,17 @@ def run(args, bridge: "ControlBridge | None" = None) -> int:
             while True:  # session rounds: ARM -> hold loop -> booked -> re-arm
                 round_no += 1
                 b.publish(round_no=round_no, booked=None)
+                if round_no > 1:
+                    # Re-arm: clear last round's slip so a leftover selection
+                    # can't silently re-arm as the new target.
+                    try:
+                        n = clear_betslip(page)
+                        if n:
+                            b.log(f"cleared {n} leftover selection(s) from "
+                                  "the betslip")
+                    except Exception as e:  # noqa: BLE001 — never block arming
+                        b.log(f"betslip clear failed ({type(e).__name__}: {e}) "
+                              "— continuing")
 
                 # -- ARM ---------------------------------------------------
                 # Smart key handling: a still-valid key needs no minimal bet.
@@ -1371,7 +1398,12 @@ def run(args, bridge: "ControlBridge | None" = None) -> int:
                             b.log("selection removed — listening...")
                     if not (key_pair and choices and stable_since is not None
                             and time.time() - stable_since >= 2.0):
-                        page.wait_for_timeout(1000)
+                        # Wait ~1s between slip reads, but keep draining the
+                        # action queue so STOP / CHANGE SELECTION respond
+                        # while listening (wait_action raises StopRequested).
+                        got = b.wait_action(timeout=1.0)
+                        if got and got[0] not in ("enter",):
+                            b.log(f"(ignored while listening: {got[0]})")
                         continue
                     if len(choices) == 1:
                         slip = choices[0]
@@ -1404,6 +1436,8 @@ def run(args, bridge: "ControlBridge | None" = None) -> int:
                             slip = match
                             break
                         b.log("stale pick (slip changed) — pick again")
+                    elif got and got[0] not in ("enter",):
+                        b.log(f"(ignored while listening: {got[0]})")
                 if key_pair is None:
                     raise SystemExit("no cipher key appeared — place a minimal bet first")
                 if slip is None:
