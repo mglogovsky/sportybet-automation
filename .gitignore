@@ -9,3 +9,8 @@ __pycache__/
 dist/
 build/
 packaging/FeedWire.iconset/
+dist-installer/
+Archive.zip
+FeedWire-windows-build-src.zip
+FeedWire-windows-build-src/
+client-error*.jpg
