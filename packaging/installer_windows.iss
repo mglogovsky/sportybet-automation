@@ -6,14 +6,14 @@
 ; An installer means clients never see a zip at all.
 ;
 ; Dependencies handled automatically at install time (see [Code] below):
-;   1. Microsoft Edge WebView2 Runtime — REQUIRED by the pywebview window;
+;   1. Microsoft Edge WebView2 Runtime - REQUIRED by the pywebview window;
 ;      missing runtime = "Failed to resolve Python.Runtime.Loader.Initialize"
 ;      crash. Downloaded (evergreen bootstrapper) and silently installed.
-;   2. Visual C++ 2015-2022 x64 Redistributable — needed by python312.dll and
+;   2. Visual C++ 2015-2022 x64 Redistributable - needed by python312.dll and
 ;      other native binaries. Downloaded and installed (UAC prompt if needed).
-;   3. .NET Framework 4.8 — needed by pywebview's winforms fallback. Warns
+;   3. .NET Framework 4.8 - needed by pywebview's winforms fallback. Warns
 ;      with a download link if missing (built into Windows 10 1903+ / 11).
-;   4. AdsPower — the app drives it over CDP. Non-blocking reminder if not
+;   4. AdsPower - the app drives it over CDP. Non-blocking reminder if not
 ;      found; clients install it themselves from adspower.net.
 ;
 ; Downloads use Microsoft's evergreen URLs, so clients always get the current
@@ -29,7 +29,7 @@
 #define AppPublisher "FeedWire"
 #define AppURL       "https://feed-wire.pro"
 #define AppExeName   "FeedWire - Sporty Bet.exe"
-; Keep this AppId fixed forever — it's how Windows tracks upgrades/uninstalls.
+; Keep this AppId fixed forever - it's how Windows tracks upgrades/uninstalls.
 #define AppId        "{{D9BF4927-E9DD-4AB5-821D-E532FB545DBA}"
 
 [Setup]
@@ -40,7 +40,7 @@ AppPublisher={#AppPublisher}
 AppPublisherURL={#AppURL}
 AppSupportURL={#AppURL}
 AppUpdatesURL={#AppURL}
-; Per-user install into %LOCALAPPDATA%\Programs — no admin prompt for the app
+; Per-user install into %LOCALAPPDATA%\Programs - no admin prompt for the app
 ; itself. (Dependency installers may still raise UAC when they need it.)
 DefaultDirName={localappdata}\Programs\{#AppName}
 DefaultGroupName={#AppName}
@@ -80,12 +80,12 @@ Name: "{autodesktop}\{#AppName}";  Filename: "{app}\{#AppExeName}"; Tasks: deskt
 Filename: "{app}\{#AppExeName}"; Description: "Launch {#AppName}"; Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Nothing extra — license key and config live in %APPDATA%\SportyPilot and
+; Nothing extra - license key and config live in %APPDATA%\SportyPilot and
 ; must survive uninstall/reinstall so clients don't have to re-activate.
 
 [Code]
 const
-  { Microsoft evergreen download URLs — always serve the current runtime. }
+  { Microsoft evergreen download URLs - always serve the current runtime. }
   WebView2Url  = 'https://go.microsoft.com/fwlink/p/?LinkId=2124703';  { x64 bootstrapper }
   VCRedistUrl  = 'https://aka.ms/vs/17/release/vc_redist.x64.exe';
   NetFxUrl     = 'https://dotnet.microsoft.com/download/dotnet-framework/net48';
@@ -122,7 +122,7 @@ begin
 end;
 
 { Best-effort detection only: AdsPower install locations vary, so a miss here
-  just produces an informational reminder — never a blocked install. }
+  just produces an informational reminder - never a blocked install. }
 function IsAdsPowerInstalled: Boolean;
 begin
   Result :=
@@ -177,7 +177,7 @@ end;
 
 procedure InstallDependencies;
 begin
-  { 1. WebView2 Runtime — hard requirement for the app window.
+  { 1. WebView2 Runtime - hard requirement for the app window.
        The bootstrapper installs per-user when not elevated, so no UAC here. }
   if IsWebView2Installed then
     Log('WebView2 Runtime already present')
@@ -188,16 +188,16 @@ begin
            'The app window will not open without it. Install it manually from:'#13#10 +
            'https://developer.microsoft.com/microsoft-edge/webview2/', mbError, MB_OK);
 
-  { 2. VC++ 2015-2022 x64 runtime — needed by python312.dll & native deps.
+  { 2. VC++ 2015-2022 x64 runtime - needed by python312.dll & native deps.
        vc_redist requires elevation -> runas verb (single UAC prompt). }
   if IsVCRedistInstalled then
     Log('Visual C++ Runtime already present')
   else if DownloadAndRun(VCRedistUrl, 'vc_redist.x64.exe', '/install /quiet /norestart', 'Microsoft Visual C++ Redistributable', True) then
     Log('Visual C++ Runtime installed');
 
-  { 3. .NET Framework 4.8 — only used by pywebview's winforms fallback.
+  { 3. .NET Framework 4.8 - only used by pywebview's winforms fallback.
        Cannot be installed silently from a per-user installer (needs admin +
-       often a reboot), and it ships with Windows 10 1903+/11 — so just warn. }
+       often a reboot), and it ships with Windows 10 1903+/11 - so just warn. }
   if not IsNetFx48Installed then
     MsgBox('.NET Framework 4.8 was not detected. The app usually does not need it' #13#10 +
            '(it is only a fallback display engine), but if the app fails to open' #13#10 +
@@ -211,7 +211,7 @@ begin
 
   if CurStep = ssPostInstall then
   begin
-    { 4. AdsPower — third-party app the app drives over CDP. Non-blocking. }
+    { 4. AdsPower - third-party app the app drives over CDP. Non-blocking. }
     if not IsAdsPowerInstalled then
       MsgBox('Reminder: this app controls the AdsPower browser, which was not' #13#10 +
              'detected on this PC. Install AdsPower and keep it running before' #13#10 +

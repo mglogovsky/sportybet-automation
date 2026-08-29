@@ -1,4 +1,4 @@
-# Build FeedWire - Sporty Bet for Windows (run on Windows — PyInstaller doesn't cross-compile).
+# Build FeedWire - Sporty Bet for Windows (run on Windows - PyInstaller doesn't cross-compile).
 # Usage: powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -17,7 +17,7 @@ python -m PyInstaller --noconfirm --distpath dist --workpath build packaging\spo
 Compress-Archive -Path "dist\FeedWire - Sporty Bet" -DestinationPath "dist\FeedWire-SportyBet-windows.zip" -Force
 Write-Host "built: dist\FeedWire - Sporty Bet\ and dist\FeedWire-SportyBet-windows.zip"
 
-# Inno Setup installer — preferred distribution artifact. Clients running the
+# Inno Setup installer - preferred distribution artifact. Clients running the
 # exe straight from inside the zip get "Failed to load python312.dll" because
 # _internal\ never gets extracted; an installer eliminates that failure mode.
 $iscc = Get-Command ISCC.exe -ErrorAction SilentlyContinue
@@ -34,8 +34,8 @@ if ($iscc) {
     & $iscc.Source "packaging\installer_windows.iss"
     if ($LASTEXITCODE -ne 0) { throw "Inno Setup compilation failed (exit $LASTEXITCODE)" }
     Get-ChildItem dist\FeedWire-SportyBet-Setup-*.exe | ForEach-Object {
-        Write-Host "built: $($_.FullName) (installer — ship this one)"
+        Write-Host "built: $($_.FullName) (installer - ship this one)"
     }
 } else {
-    Write-Warning "Inno Setup 6 not found — skipping installer. Install from https://jrsoftware.org/isdl.php and re-run to produce dist\FeedWire-SportyBet-Setup-*.exe"
+    Write-Warning "Inno Setup 6 not found - skipping installer. Install from https://jrsoftware.org/isdl.php and re-run to produce dist\FeedWire-SportyBet-Setup-*.exe"
 }
