@@ -1,0 +1,40 @@
+# Builds the Windows installer (FeedWire-SportyBet-Setup-*.exe) on a GitHub
+# Windows runner — no local Windows machine needed.
+#
+# How to use:
+#   GitHub repo → Actions → "Build Windows installer" → Run workflow.
+#   When it finishes (green), download the installer from the run's
+#   "Artifacts" section at the bottom of the run page.
+name: Build Windows installer
+
+on:
+  workflow_dispatch:   # manual trigger only — run it when you need a build
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install Python dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install pyinstaller
+
+      - name: Install Inno Setup 6
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build app + installer
+        run: powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: FeedWire-SportyBet-Setup
+          path: dist/FeedWire-SportyBet-Setup-*.exe
+          if-no-files-found: error

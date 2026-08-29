@@ -31,10 +31,43 @@ PYTHON=$(which python3) packaging/build_macos.sh
 
 # Windows (on Windows)
 powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1
-#   → "dist\FeedWire - Sporty Bet\" + FeedWire-SportyBet-windows.zip
+#   → "dist\FeedWire - Sporty Bet\"
+#   → FeedWire-SportyBet-Setup-<version>.exe  ← installer, ship this one
+#   → FeedWire-SportyBet-windows.zip          ← fallback for manual installs
 ```
 
 PyInstaller does **not** cross-compile: build each artifact on its own OS.
+
+### Windows installer (Inno Setup)
+
+`build_windows.ps1` automatically compiles `packaging\installer_windows.iss`
+into `dist\FeedWire-SportyBet-Setup-<version>.exe` when **Inno Setup 6** is
+installed ([download](https://jrsoftware.org/isdl.php) — free). Without it the
+script warns and only produces the zip.
+
+**Ship the installer, not the zip.** Clients who double-click the exe from
+inside the raw zip get "Failed to load Python DLL … python312.dll" because
+Windows temp-extracts only the exe without `_internal\`. The installer
+eliminates that failure mode entirely. It installs per-user to
+`%LOCALAPPDATA%\Programs\FeedWire - Sporty Bet` (no admin prompt), adds
+Start Menu + optional desktop shortcuts, supports upgrades via a fixed AppId,
+and preserves the license key in `%APPDATA%\SportyPilot` on uninstall.
+
+### Dependencies (handled by the installer)
+
+The installer checks and fixes Windows prerequisites automatically, so
+clients don't hit cryptic startup crashes. First install needs an internet
+connection (runtimes download from Microsoft's evergreen URLs):
+
+| Dependency | Why it's needed | Installer behavior |
+|---|---|---|
+| **Edge WebView2 Runtime** | pywebview's window engine; missing = "Failed to resolve Python.Runtime.Loader.Initialize" crash | Downloaded + silently installed (per-user, no UAC) |
+| **VC++ 2015-2022 x64 Redist** | `python312.dll` and native deps | Downloaded + installed (one UAC prompt) |
+| **.NET Framework 4.8** | pywebview winforms fallback only | Warns with link if missing (built into Win10 1903+/11) |
+| **AdsPower** | app drives it over CDP | Non-blocking reminder with link if not detected |
+
+The zip remains as a fallback artifact, but anyone installing from it must
+install WebView2 themselves.
 
 > `build_macos.sh` needs a Python with the runtime deps. Pass it explicitly
 > via `PYTHON=...` (the built-in default is a machine-specific dev path).

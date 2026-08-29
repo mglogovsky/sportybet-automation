@@ -39,17 +39,23 @@ want a full reset.
 
 ### Install
 
-1. Unzip `FeedWire-SportyBet-windows.zip` to a permanent folder
-   (e.g. `C:\Apps\FeedWire - Sporty Bet`).
-2. Run **FeedWire - Sporty Bet.exe** — pin it to the taskbar or make a
-   desktop shortcut if you like.
-3. **First launch:** Windows SmartScreen may warn ("Windows protected your
+1. Run **FeedWire-SportyBet-Setup.exe**. The installer automatically installs
+   the **Microsoft Edge WebView2 Runtime** and other components the app needs
+   (internet required on first install; you may see one admin prompt).
+2. **First launch:** Windows SmartScreen may warn ("Windows protected your
    PC") because the app is unsigned. Click **More info** → **Run anyway**.
+3. Launch from the Start Menu or the desktop shortcut.
+
+> Only if you were given the raw `.zip` instead: unzip it to a permanent
+> local folder first (e.g. `C:\Apps\FeedWire - Sporty Bet` — **not** inside
+> OneDrive, and never run the exe from inside the zip), then make sure the
+> [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/)
+> is installed before launching.
 
 ### Uninstall
 
-Delete the folder you unzipped. Your license key and settings live in
-`%APPDATA%\SportyPilot\` — delete that too for a full reset.
+Settings → Apps → **FeedWire - Sporty Bet** → Uninstall. Your license key and
+settings live in `%APPDATA%\SportyPilot\` — delete that too for a full reset.
 
 ---
 
