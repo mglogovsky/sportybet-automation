@@ -131,7 +131,7 @@ begin
     DirExists(GetEnv('ProgramFiles(x86)') + '\AdsPower');
 end;
 
-{ Downloads Url to {tmp}\BaseName (Inno 6.1+ built-in) and runs it.
+{ Downloads Url into the tmp folder as BaseName (Inno 6.1+ built-in) and runs it.
   Returns True when the installer exits with a success/reboot code.
   NeedsAdmin runs it via the "runas" verb so the user gets a UAC prompt even
   though our own installer is per-user. }
