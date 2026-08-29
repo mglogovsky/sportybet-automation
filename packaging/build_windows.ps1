@@ -1,4 +1,4 @@
-# Build SportyPilot for Windows (run on Windows — PyInstaller doesn't cross-compile).
+# Build FeedWire - Sporty Bet for Windows (run on Windows — PyInstaller doesn't cross-compile).
 # Usage: powershell -ExecutionPolicy Bypass -File packaging\build_windows.ps1
 $ErrorActionPreference = "Stop"
 Set-Location (Join-Path $PSScriptRoot "..")
@@ -12,7 +12,7 @@ python -m PyInstaller --noconfirm --distpath dist --workpath build packaging\spo
 # NOTE on signing: unsigned builds trigger SmartScreen. For beta a self-signed
 # cert is acceptable; for real distribution use an EV code-signing cert.
 # Example (once you have one):
-#   signtool sign /fd sha256 /a dist\SportyPilot\SportyPilot.exe
+#   signtool sign /fd sha256 /a "dist\FeedWire - Sporty Bet\FeedWire - Sporty Bet.exe"
 
-Compress-Archive -Path dist\SportyPilot -DestinationPath dist\SportyPilot-windows.zip -Force
-Write-Host "built: dist\SportyPilot\ and dist\SportyPilot-windows.zip"
+Compress-Archive -Path "dist\FeedWire - Sporty Bet" -DestinationPath "dist\FeedWire-SportyBet-windows.zip" -Force
+Write-Host "built: dist\FeedWire - Sporty Bet\ and dist\FeedWire-SportyBet-windows.zip"

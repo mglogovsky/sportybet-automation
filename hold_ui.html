@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>SportyBet Hold</title>
+<title>FeedWire - Sporty Bet</title>
 <style>
   /* ─────────────────────────────────────────────────────────────
      FEED WIRE identity, applied to the hold console — copper conductor
@@ -132,6 +132,14 @@
   .step.urgent{border-color:var(--redd);background:var(--redbg);color:#F0B9AC}
   .step.urgent .n{color:var(--red);border-color:var(--redd)}
 
+  /* ---- big action-required banner — the ₦10 token bet must be unmissable --- */
+  .bigwarn{width:100%;background:var(--redbg);border:2px solid var(--red);border-radius:4px;
+    padding:16px 14px;text-align:center;display:flex;flex-direction:column;gap:6px;
+    animation:warnpulse 1.6s ease-in-out infinite}
+  .bigwarn .t{font:800 15px var(--mono);letter-spacing:.06em;text-transform:uppercase;color:var(--red)}
+  .bigwarn .s{font:12px var(--sans);color:#F0B9AC}
+  @keyframes warnpulse{0%,100%{box-shadow:0 0 0 0 rgba(226,109,90,.55)}50%{box-shadow:0 0 0 9px rgba(226,109,90,0)}}
+
   /* ---- timer / progress — the wire, running ------------------------------- */
   .timerwrap{display:flex;flex-direction:column;gap:2px;align-items:center}
   .timer{font:700 44px/1.05 var(--mono);letter-spacing:-.02em;font-variant-numeric:tabular-nums}
@@ -219,7 +227,7 @@
 </head>
 <body>
 <header>
-  <div class="brand"><svg width="15" height="15" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#E2703A" stroke-width="4" stroke-linecap="round"><path d="M4 24h8"/><path d="M36 24h8"/><circle cx="24" cy="24" r="8.5"/></g><circle cx="24" cy="24" r="3.2" fill="#E2703A"/></svg>SPORTYBET&nbsp;<em>HOLD</em></div>
+  <div class="brand"><svg width="15" height="15" viewBox="0 0 48 48" aria-hidden="true"><g fill="none" stroke="#E2703A" stroke-width="4" stroke-linecap="round"><path d="M4 24h8"/><path d="M36 24h8"/><circle cx="24" cy="24" r="8.5"/></g><circle cx="24" cy="24" r="3.2" fill="#E2703A"/></svg>FEEDWIRE&nbsp;<em>SPORTY BET</em></div>
   <div class="pill idle" id="pill"><span class="dot"></span>idle</div>
   <div class="pill badge" id="instaPill" style="display:none" title="Live market status of the armed selection: OPEN = a bet verdicts instantly (INSTA possible); SUSPENDED = the server parks bets (hold window, INSTA off)"></div>
   <div class="pill license" id="licPill" style="display:none" title="License status (checked at startup and every 12 h against the license server)"></div>
@@ -394,7 +402,7 @@ function hero() {
     const st = S.settings || {};
     const g = k => st[k] == null ? "—" : (Number.isInteger(+st[k]) ? +st[k] : st[k]);
     return `
-    <h2>SportyBet Hold</h2>
+    <h2>FeedWire - Sporty Bet</h2>
     <div class="sub">pick a profile, press START — the rest is automatic</div>
     <div style="width:100%;text-align:left">
       <label>PROFILE</label>
@@ -429,6 +437,9 @@ function hero() {
     }
     return `
     <h2>Get ready</h2>
+    ${needBet ? `<div class="bigwarn"><div class="t">⚠ ACTION NEEDED — PLACE A ₦10 BET</div>
+      <div class="s">Place <b>any ₦10 bet on any match</b> in the AdsPower window — this refreshes your tokens.<br>
+      After it books, delete it from the betslip as usual (the app also auto-clears the slip once tokens arrive).</div></div>` : ""}
     <div class="steps">
       <div class="step${t ? " done" : ""}"><span class="n">${t ? "✓" : "1"}</span> Add your bet to the betslip <b>in the AdsPower window</b></div>
       <div class="step${needBet ? " urgent" : " done"}"><span class="n">${needBet ? "!" : "✓"}</span> ${needBet ? "Place any ₦10 bet on any match — this refreshes your tokens" : "No manual bet needed — tokens valid"}</div>
@@ -444,13 +455,14 @@ function hero() {
       : open ? `<b style="color:var(--green)">OPEN — verdicts INSTANTLY</b>`
       : susp ? `<b style="color:var(--amber)">SUSPENDED — hold window live</b>`
       : `<b>status ${ms}</b>`;
-    // One recommended primary action per market state; the other stays one tap away.
+    // UI shows ONLY Instabet now (owner request 2026-08-28): FIRE HOLD's
+    // logic and the 'begin' action stay fully intact server-side — the button
+    // is just not rendered.
     const instaBtn = open
-      ? `<button class="bigbtn green" onclick="btn(this,'insta')">⚡&nbsp; INSTA BET ${fmt(S.balance)}</button>`
-      : `<button class="bigbtn ghost" disabled>⚡&nbsp; INSTA BET — unlocks when market opens</button>`;
-    const holdBtn = susp
-      ? `<button class="bigbtn green" onclick="btn(this,'begin')">🎯&nbsp; FIRE HOLD — window live</button>`
-      : `<button class="bigbtn ${open ? "ghost" : "amber"}" onclick="btn(this,'begin')">🎯&nbsp; FIRE HOLD</button>`;
+      ? `<button class="bigbtn green" onclick="btn(this,'insta')">⚡&nbsp; INSTABET ${fmt(S.balance)}</button>`
+      : `<button class="bigbtn ghost" disabled>⚡&nbsp; INSTABET — unlocks when market opens</button>`;
+    // const holdBtn = ... (hidden — FIRE HOLD not shown in UI; logic intact)
+    const holdBtn = "";
     return `
     <h2>Target armed</h2>
     ${targetCard(t, false)}
@@ -459,11 +471,11 @@ function hero() {
       <div class="kv"><span>BALANCE</span><b>${fmt(S.balance)}</b></div>
       <div class="kv"><span>MARKET</span>${msLine}</div>
     </div>
-    ${open ? instaBtn + holdBtn : holdBtn + instaBtn}
+    ${instaBtn}
     <button class="bigbtn ghost" onclick="btn(this,'rearm')">↺&nbsp; CHANGE SELECTION</button>
-    <div class="hint">${open ? "market open: INSTA verdicts immediately; FIRE HOLD waits for a suspension before each fire"
-      : susp ? "market suspended: FIRE HOLD has its window; INSTA unlocks when it re-opens"
-      : "INSTA unlocks on OPEN · FIRE HOLD waits for suspensions on its own"}</div>`;
+    <div class="hint">${open ? "market open: INSTABET verdicts immediately"
+      : susp ? "market suspended: INSTABET unlocks when it re-opens"
+      : "INSTABET unlocks when the market opens"}</div>`;
   }
   case "insta":
     return `<div class="timerwrap"><div class="timer" id="tm">0.0s</div><div class="tlabel">ELAPSED</div></div>

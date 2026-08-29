@@ -1370,6 +1370,26 @@ def run(args, bridge: "ControlBridge | None" = None) -> int:
                         if key_pair:
                             b.publish(need_bet=False,
                                       key_expires_at=key_pair[2])
+                            # The minimal ₦10 bet minted the key — clear the
+                            # betslip the way the operator does by hand, so
+                            # the leftover selection can't arm as the target.
+                            try:
+                                n = clear_betslip(page)
+                                if n:
+                                    b.log(f"token bet booked — cleared {n} "
+                                          "leftover selection(s) from the "
+                                          "betslip")
+                                else:
+                                    b.log("token bet booked — betslip "
+                                          "already empty")
+                            except Exception as e:  # noqa: BLE001
+                                b.log(f"betslip clear after token bet failed "
+                                      f"({type(e).__name__}: {e}) — delete "
+                                      "the slip selection by hand")
+                            # Slip content changed under us: force the tracker
+                            # below to re-read and re-stabilise.
+                            last_list_sig = None
+                            stable_since = None
                     accept_slip_changes(page)
                     b.publish(suspended=market_suspended(page))
                     choices = read_all_selections(page)

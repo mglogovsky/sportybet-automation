@@ -17,8 +17,8 @@ rm -rf build dist
 # Ad-hoc codesign so Gatekeeper shows a consistent identity (beta only).
 # For distribution to other Macs, replace with a real Developer ID cert and
 # notarize; until then users must right-click → Open (see README).
-codesign --force --deep --sign - dist/SportyPilot.app || true
+codesign --force --deep --sign - "dist/FeedWire - Sporty Bet.app" || true
 
 cd dist
-zip -qry SportyPilot-macos.zip SportyPilot.app
-echo "built: dist/SportyPilot.app and dist/SportyPilot-macos.zip"
+zip -qry FeedWire-SportyBet-macos.zip "FeedWire - Sporty Bet.app"
+echo "built: dist/FeedWire - Sporty Bet.app and dist/FeedWire-SportyBet-macos.zip"

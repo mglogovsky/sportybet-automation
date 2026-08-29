@@ -42,6 +42,14 @@ datas += _d
 binaries += _b
 hiddenimports += _h
 
+# pywebview (native window, WKWebView) — collect_all pulls in the platform
+# backends (webview.platforms.cocoa …) that PyInstaller's static analysis
+# misses because they're imported dynamically.
+_d, _b, _h = collect_all("webview")
+datas += _d
+binaries += _b
+hiddenimports += _h
+
 a = Analysis(
     [str(REPO / "sportybet_hold_ui.py")],
     pathex=[str(REPO)],
@@ -62,7 +70,9 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name="SportyPilot",
+    name="FeedWire - Sporty Bet",
+    # .ico applies to the Windows build; ignored on macOS (BUNDLE uses .icns).
+    icon=str(REPO / "packaging" / "FeedWire.ico"),
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -77,17 +87,18 @@ coll = COLLECT(
     a.datas,
     strip=False,
     upx=False,
-    name="SportyPilot",
+    name="FeedWire - Sporty Bet",
 )
 
 # macOS .app bundle (ignored on Windows)
 app = BUNDLE(
     coll,
-    name="SportyPilot.app",
-    icon=None,
-    bundle_identifier="com.sportypilot.app",
+    name="FeedWire - Sporty Bet.app",
+    icon=str(REPO / "packaging" / "FeedWire.icns"),
+    bundle_identifier="pro.feedwire.sportybet",
     info_plist={
-        "CFBundleName": "SportyPilot",
+        "CFBundleName": "FeedWire - Sporty Bet",
+        "CFBundleDisplayName": "FeedWire - Sporty Bet",
         "CFBundleShortVersionString": "0.1.0",
         "CFBundleVersion": "0.1.0",
         "LSUIElement": False,

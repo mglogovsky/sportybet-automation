@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""SportyBet Hold UI — a small local app window driving sportybet_hold_flow.
+"""FeedWire - Sporty Bet — a small native app window driving sportybet_hold_flow.
 
-Opens http://127.0.0.1:8790 in a Chrome --app window (no tab bar/omnibox).
-The page picks an AdsPower profile and presses START; the flow then runs on a
+The UI is hold_ui.html served by a tiny localhost HTTP server and shown in a
+NATIVE window (pywebview / WKWebView — no Chrome, no external browser). The
+page picks an AdsPower profile and presses START; the flow then runs on a
 single worker thread (the sole owner of Playwright — see the asyncio note in
 sportybet_hold_flow.py) and publishes its state through a ControlBridge, which
 is also how the buttons (begin / redeem / rearm / retry / stop) reach it.
@@ -23,10 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import queue
-import subprocess
-import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -228,63 +226,23 @@ class App:
 APP: App  # created in main() once --no-license is known
 
 
-def _find_chrome_windows() -> str | None:
-    """chrome.exe via the App Paths registry key, then standard install dirs."""
+def run_native_window(url: str) -> bool:
+    """Native app window via pywebview (WKWebView on macOS — no Chrome, no
+    browser at all). Returns False only when pywebview is unavailable.
+
+    webview.start() MUST run on the main thread (AppKit requirement), so the
+    HTTP server moves to a daemon thread while this blocks until the window
+    is closed.
+    """
     try:
-        import winreg
-        for root in (winreg.HKEY_CURRENT_USER, winreg.HKEY_LOCAL_MACHINE):
-            try:
-                with winreg.OpenKey(
-                        root, r"SOFTWARE\Microsoft\Windows\CurrentVersion"
-                              r"\App Paths\chrome.exe") as k:
-                    path, _ = winreg.QueryValueEx(k, None)
-                    if path and os.path.exists(path):
-                        return path
-            except OSError:
-                continue
+        import webview
     except ImportError:
-        pass
-    for env in ("LOCALAPPDATA", "PROGRAMFILES", "PROGRAMFILES(X86)"):
-        base = os.environ.get(env)
-        if not base:
-            continue
-        p = os.path.join(base, r"Google\Chrome\Application\chrome.exe")
-        if os.path.exists(p):
-            return p
-    return None
-
-
-def open_window(url: str) -> bool:
-    """Chrome --app mode: a small window with no tab strip or omnibox."""
-    if sys.platform == "win32":
-        chrome = _find_chrome_windows()
-        if chrome:
-            try:
-                subprocess.Popen(
-                    [chrome, f"--app={url}",
-                     f"--window-size={WINDOW_SIZE[0]},{WINDOW_SIZE[1]}",
-                     "--window-position=100,60"],
-                    stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                return True
-            except Exception:
-                pass
-        # Last resort: the default browser (console=False means no printed
-        # URL, so always try to open SOMETHING).
-        try:
-            os.startfile(url)  # type: ignore[attr-defined]
-            return True
-        except Exception:
-            return False
-    try:
-        subprocess.Popen(
-            ["open", "-na", "Google Chrome", "--args",
-             f"--app={url}",
-             f"--window-size={WINDOW_SIZE[0]},{WINDOW_SIZE[1]}",
-             "--window-position=100,60"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True
-    except Exception:
         return False
+    webview.create_window("FeedWire - Sporty Bet", url,
+                          width=WINDOW_SIZE[0], height=WINDOW_SIZE[1],
+                          resizable=True, min_size=(420, 640))
+    webview.start()
+    return True
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -383,12 +341,12 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description="SportyBet Hold UI")
+    p = argparse.ArgumentParser(description="FeedWire - Sporty Bet")
     # Port precedence: --port flag > SPORTYPILOT_PORT env > config ui_port
     # > DEFAULT_PORT.
     p.add_argument("--port", type=int, default=None)
     p.add_argument("--no-window", action="store_true",
-                   help="don't open the Chrome --app window (print the URL only)")
+                   help="don't open the app window (print the URL only)")
     p.add_argument("--no-license", action="store_true",
                    help="unlicensed version: no key entry, no license-server checks")
     args = p.parse_args()
@@ -400,14 +358,8 @@ def main() -> None:
     APP.ui_port = port
     srv = ThreadingHTTPServer(("127.0.0.1", port), Handler)
     url = f"http://127.0.0.1:{port}"
-    if not args.no_window and not open_window(url):
-        print(f"(could not open Chrome app-mode — open {url} yourself)")
-    print(f"SportyBet Hold UI on {url} — Ctrl+C to quit", flush=True)
-    try:
-        srv.serve_forever()
-    except KeyboardInterrupt:
-        pass
-    finally:
+
+    def shutdown() -> None:
         print("\nshutting down — asking the round to finish...", flush=True)
         try:
             APP.bridge.actions.put("stop")
@@ -418,6 +370,35 @@ def main() -> None:
             w.join(timeout=20)
         srv.server_close()
         print("bye — AdsPower browser left running", flush=True)
+
+    if not args.no_window:
+        # Native window (pywebview/WKWebView): the server runs on a daemon
+        # thread, the window blocks the main thread until closed — closing the
+        # window IS quitting the app.
+        t = threading.Thread(target=srv.serve_forever, daemon=True,
+                             name="http-server")
+        t.start()
+        print(f"FeedWire - Sporty Bet on {url} — close the window to quit",
+              flush=True)
+        try:
+            if not run_native_window(url):
+                print("pywebview is not installed — cannot open the native "
+                      f"window. Open {url} in any browser.", flush=True)
+                srv.serve_forever()
+        except KeyboardInterrupt:
+            pass
+        finally:
+            srv.shutdown()
+            shutdown()
+        return
+
+    print(f"FeedWire - Sporty Bet on {url} — Ctrl+C to quit", flush=True)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        shutdown()
 
 
 if __name__ == "__main__":
