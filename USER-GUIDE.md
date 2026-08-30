@@ -82,4 +82,13 @@
 | The ⚡ INSTABET button is grey | Normal — the market is paused; it unlocks itself when the market opens |
 | Anything else | Close the app and open it again. Your license and settings are saved. |
 
+## If the installer itself won't start (Windows)
+
+| What you see | What to do |
+|---|---|
+| "Unable to execute file in the temporary directory. Error 267" | Your Windows TEMP folder is broken (this affects all installers, not just this one). Open Command Prompt and run: `mkdir C:\Temp`, then `set TEMP=C:\Temp`, `set TMP=C:\Temp`, then run the Setup.exe from that same window. For a permanent fix set TEMP/TMP to `C:\Temp` in System Properties → Environment Variables and restart |
+| SmartScreen: "Windows protected your PC" | Click **More info → Run anyway** (appears once; the app is unsigned) |
+| "Failed to load Python DLL / python312.dll" | You ran the exe from inside a zip. Use the Setup.exe installer instead, or extract the whole zip to a normal folder first |
+| App opens then crashes mentioning `Python.Runtime` / `winforms` | Install the [WebView2 Runtime](https://developer.microsoft.com/microsoft-edge/webview2/) (the Setup.exe does this automatically) |
+
 **One rule to remember: AdsPower first, then the app.**
