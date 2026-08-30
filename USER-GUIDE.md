@@ -23,6 +23,10 @@
    - Open AdsPower → **Settings** (⚙) → **Local API**
    - Switch it **ON / Allow** and keep the default port **50325**
    - If AdsPower asks, restart it after switching this on
+   - **Newer AdsPower versions also show an API key on this screen** — copy it,
+     then in the app open **⚙ SETTINGS**, paste it into **ADSPOWER API KEY**,
+     and press **SAVE SETTINGS**. (Only needed if the app shows a red
+     "Require api-key" message; older AdsPower versions don't require it.)
 3. **Open AdsPower** and leave it running.
 4. **Open the app** — double-click **FeedWire - Sporty Bet**.
    - *Windows:* if you see a blue "Windows protected your PC" screen → click
@@ -77,6 +81,7 @@
 | What you see | What to do |
 |---|---|
 | Profile list is empty / "AdsPower not reachable" | Open AdsPower first. If it still shows, the API is off: AdsPower → **Settings → Local API** → switch ON (port 50325), restart AdsPower, then restart the app |
+| Red message "Require api-key (code -1)" | Your AdsPower version requires an API key: AdsPower → **Settings → Local API** → copy the key, then in the app: **⚙ SETTINGS → ADSPOWER API KEY** → paste → **SAVE SETTINGS** |
 | "Can't reach the license server" | Check internet, press RETRY |
 | "License expired or revoked" | Ask your provider for a new key |
 | The ⚡ INSTABET button is grey | Normal — the market is paused; it unlocks itself when the market opens |

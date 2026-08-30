@@ -367,6 +367,9 @@ function settingsBlock() {
     <div id="cfgPanel" style="display:none">
       <label>ADSPOWER API BASE</label>
       <input id="c_adspower_api_base" placeholder="http://127.0.0.1:50325" value="${c.adspower_api_base || ""}">
+      <label>ADSPOWER API KEY</label>
+      <input id="c_adspower_api_token" placeholder="required by newer AdsPower versions" value="${c.adspower_api_token || ""}">
+      <div class="hint">AdsPower → Settings → Local API → copy the API key. Needed when the app shows "Require api-key".</div>
       <label>UI PORT (needs restart)</label>
       <input id="c_ui_port" placeholder="8790" value="${c.ui_port_saved ?? ""}">
       <div class="hint">active port: ${c.ui_port ?? "—"}</div>
@@ -385,6 +388,7 @@ async function saveConfig() {
     const r = await fetch("/api/action", {method:"POST", headers:{"content-type":"application/json"},
       body: JSON.stringify({action:"save_config",
         adspower_api_base: v("c_adspower_api_base"),
+        adspower_api_token: v("c_adspower_api_token"),
         ui_port: v("c_ui_port")})});
     const j = await r.json();
     if (!j.ok) { err.textContent = j.error || "save failed"; err.style.display = ""; }

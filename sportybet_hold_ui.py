@@ -150,6 +150,7 @@ class App:
         return {
             "config_path": str(user_config.config_path()),
             "adspower_api_base": user_config.adspower_api_base(),
+            "adspower_api_token": user_config.adspower_api_token() or "",
             "ui_port": self.ui_port,
             "ui_port_saved": cfg.get("ui_port"),
         }
