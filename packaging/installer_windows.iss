@@ -25,7 +25,7 @@
 ; (the script finds ISCC.exe automatically and compiles this file.)
 
 #define AppName      "FeedWire - Sporty Bet"
-#define AppVersion   "0.1.1"
+#define AppVersion   "0.1.2"
 #define AppPublisher "FeedWire"
 #define AppURL       "https://feed-wire.pro"
 #define AppExeName   "FeedWire - Sporty Bet.exe"

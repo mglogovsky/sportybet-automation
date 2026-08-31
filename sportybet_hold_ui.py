@@ -24,7 +24,9 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import queue
+import sys
 import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -342,6 +344,14 @@ class Handler(BaseHTTPRequestHandler):
 
 
 def main() -> None:
+    # Windowed (console=False) builds on Windows have no console, so
+    # sys.stdin/stdout/stderr are None. Point them at devnull before anything
+    # runs — otherwise print() / sys.stdin.isatty() / readline() in the flow
+    # modules crash with "'NoneType' object has no attribute ...".
+    for _stream, _mode in (("stdin", "r"), ("stdout", "w"), ("stderr", "w")):
+        if getattr(sys, _stream) is None:
+            setattr(sys, _stream, open(os.devnull, _mode))
+
     p = argparse.ArgumentParser(description="FeedWire - Sporty Bet")
     # Port precedence: --port flag > SPORTYPILOT_PORT env > config ui_port
     # > DEFAULT_PORT.
