@@ -437,9 +437,13 @@ class WsMarketTracker:
             self.b.log(f"ws odds frame: {json.dumps(decoded)[:240]}")
         for key, st in found.items():
             self.markets[key] = (st, now)
-        if self.watched and self.watched in found:
-            self.b.publish(market_status=found[self.watched],
-                           market_status_at=now)
+        if self.watched:
+            st_w = found.get(self.watched)
+            if st_w is None:
+                # frames sometimes carry the market with an empty specifier
+                st_w = found.get(self.watched.split("|", 1)[0] + "|")
+            if st_w is not None:
+                self.b.publish(market_status=st_w, market_status_at=now)
 
 
 # ---------------------------------------------------------------------------
@@ -802,8 +806,19 @@ def market_status(page, slip: dict) -> int | None:
                         body)
         data = json.loads(res.get("body") or "{}")
         markets = (data.get("data") or [{}])[0].get("markets") or []
-        if markets:
-            return int(markets[0]["status"])
+        # Match the ARMED market — the response can carry many markets for the
+        # event; markets[0] may be open while the armed one is suspended.
+        for m in markets:
+            m_id = str(m.get("id", m.get("marketId")))
+            m_spec = str(m.get("specifier") or "")
+            if "?" in m_id:
+                m_id, glued = m_id.split("?", 1)
+                m_spec = m_spec or glued
+            if m_id == mid and (not spec or not m_spec or m_spec == spec):
+                return int(m.get("status", m.get("marketStatus")))
+        if len(markets) == 1:
+            m = markets[0]
+            return int(m.get("status", m.get("marketStatus")))
     except Exception:
         pass
     return None
@@ -1144,6 +1159,23 @@ def insta_bet(page, args, slip: dict, key_ref: list, balance: float,
     fresh = read_selection(page, slip["eventId"])
     if fresh:
         slip = fresh
+
+    # Pre-fire gate: the UI's INSTABET button reflects a 1 Hz snapshot that
+    # can be stale (and previously never expired). A suspended market parks a
+    # full-balance order for 7-13s — exactly the "INSTABET but the bet took
+    # 8 seconds" report. Re-read the live status NOW and refuse when it's
+    # known to be anything but OPEN.
+    tracker = live.get("ws")
+    st = tracker.status_for(slip) if tracker is not None else None
+    if st is None:
+        st = market_status(page, slip)
+    if st is not None and st != 0:
+        b.log(f"INSTA refused — market status {st} (suspended): the order "
+              f"would park for seconds. Wait for the market to re-open.")
+        return False
+    if st is None:
+        b.log("insta: live market status unreadable — firing anyway")
+
     payload = build_payload(slip, int(round(stake * 10000)))
     body = aes_encrypt_b64(json.dumps(payload, separators=(",", ":")), key)
     b.log(f"INSTA BET: firing full balance NGN {stake:,.2f} on "

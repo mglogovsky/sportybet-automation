@@ -453,7 +453,11 @@ function hero() {
     <div class="hint">the card follows your slip live — arms when stable 2 s</div>`;
   }
   case "ready": {
-    const ms = S.market_status;
+    const msRaw = S.market_status;
+    // The WS tracker publishes market_status_at with each status; without a
+    // freshness gate a minutes-old "OPEN" would keep INSTABET green forever.
+    const ms = (msRaw != null && S.market_status_at && S.now &&
+                (S.now - S.market_status_at) <= 12) ? msRaw : null;
     const open = ms === 0, susp = ms === 1 || ms === 2;
     const msLine = ms == null ? `<span style="color:var(--dim)">reading live market status…</span>`
       : open ? `<b style="color:var(--green)">OPEN — verdicts INSTANTLY</b>`
@@ -559,7 +563,10 @@ function render() {
   p.className = "pill " + (S.state || "idle");
   p.innerHTML = '<span class="dot"></span>' + (S.state || "idle");
   // Persistent INSTA availability badge (live market status of the armed slip)
-  const ip = $("#instaPill"), ms = S.market_status;
+  const ip = $("#instaPill");
+  const msFresh = S.market_status != null && S.market_status_at && S.now &&
+                  (S.now - S.market_status_at) <= 12;
+  const ms = msFresh ? S.market_status : null;
   const live = !["idle","setup","error"].includes(S.state); // stale off-session
   if (live && ms === 0) {
     ip.style.display = ""; ip.className = "pill badge open";

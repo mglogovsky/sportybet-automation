@@ -99,8 +99,8 @@ app = BUNDLE(
     info_plist={
         "CFBundleName": "FeedWire - Sporty Bet",
         "CFBundleDisplayName": "FeedWire - Sporty Bet",
-        "CFBundleShortVersionString": "0.1.2",
-        "CFBundleVersion": "0.1.2",
+        "CFBundleShortVersionString": "0.1.3",
+        "CFBundleVersion": "0.1.3",
         "LSUIElement": False,
     },
 )
